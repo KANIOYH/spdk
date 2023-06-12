@@ -203,6 +203,9 @@ enum nvme_payload_type {
 
 	/** nvme_request::u.sgl is valid for this request */
 	NVME_PAYLOAD_TYPE_SGL,
+
+	/** for gpu-dma*/
+	NVME_PALYLOAD_TYPE_GPU,
 };
 
 /** Boot partition write states */
@@ -238,6 +241,8 @@ struct nvme_payload {
 
 	/** Virtual memory address of a single virtually contiguous metadata buffer */
 	void *md;
+
+	bool gpu_src_flag;
 };
 
 #define NVME_PAYLOAD_CONTIG(contig_, md_) \
@@ -246,6 +251,7 @@ struct nvme_payload {
 		.next_sge_fn = NULL, \
 		.contig_or_cb_arg = (contig_), \
 		.md = (md_), \
+		.gpu_src_flag = (false), \
 	}
 
 #define NVME_PAYLOAD_SGL(reset_sgl_fn_, next_sge_fn_, cb_arg_, md_) \
@@ -254,10 +260,23 @@ struct nvme_payload {
 		.next_sge_fn = (next_sge_fn_), \
 		.contig_or_cb_arg = (cb_arg_), \
 		.md = (md_), \
+		.gpu_src_flag = (false), \
+	}
+
+#define NVME_PAYLOAD_GPU(contig_, md_) \
+	(struct nvme_payload) { \
+		.reset_sgl_fn = NULL, \
+		.next_sge_fn = NULL, \
+		.contig_or_cb_arg = (contig_), \
+		.md = (md_), \
+		.gpu_src_flag = (true), \
 	}
 
 static inline enum nvme_payload_type
 nvme_payload_type(const struct nvme_payload *payload) {
+	if(payload->gpu_src_flag)
+		return NVME_PAYLOAD_GPU;
+		
 	return payload->reset_sgl_fn ? NVME_PAYLOAD_TYPE_SGL : NVME_PAYLOAD_TYPE_CONTIG;
 }
 
