@@ -35,6 +35,12 @@ nvme_pcie_vtophys(struct spdk_nvme_ctrlr *ctrlr, const void *buf, uint64_t *size
 	}
 }
 
+static inline uint64_t
+nvme_pcie_gpu_vtophys(const void *buf, uint64_t *size)
+{
+	//TODO
+}
+
 int
 nvme_pcie_qpair_reset(struct spdk_nvme_qpair *qpair)
 {
@@ -1266,6 +1272,25 @@ nvme_pcie_prp_list_append(struct spdk_nvme_ctrlr *ctrlr, struct nvme_tracker *tr
 	return 0;
 }
 
+static inline int
+nvme_pcie_gpu_prp_list_append(struct spdk_nvme_ctrlr *ctrlr, struct nvme_tracker *tr,
+			  uint32_t *prp_index, void *virt_addr, size_t len,
+			  uint32_t page_size)
+{
+	struct spdk_nvme_cmd *cmd = &tr->req->cmd;
+	uintptr_t page_mask = page_size - 1;
+	uint64_t phys_addr;
+	uint32_t i;
+
+	SPDK_DEBUGLOG(nvme, "prp_index:%u virt_addr:%p len:%u\n",
+		      *prp_index, virt_addr, (uint32_t)len);
+
+
+	//TODO
+
+	return 0;
+}
+
 static int
 nvme_pcie_qpair_build_request_invalid(struct spdk_nvme_qpair *qpair,
 				      struct nvme_request *req, struct nvme_tracker *tr, bool dword_aligned)
@@ -1564,6 +1589,23 @@ nvme_pcie_qpair_build_prps_sgl_request(struct spdk_nvme_qpair *qpair, struct nvm
 	return 0;
 }
 
+static int
+nvme_pcie_qpair_build_gpu_contig_request(struct spdk_nvme_qpair *qpair, struct nvme_request *req,
+				     struct nvme_tracker *tr, bool dword_aligned)
+{
+	uint32_t prp_index = 0;
+	int rc;
+
+	rc = nvme_pcie_prp_list_append(qpair->ctrlr, tr, &prp_index,
+				       (uint8_t *)req->payload.contig_or_cb_arg + req->payload_offset,
+				       req->payload_size, qpair->ctrlr->page_size);
+	if (rc) {
+		nvme_pcie_fail_request_bad_vtophys(qpair, tr);
+	}
+
+	return rc;
+}
+
 typedef int(*build_req_fn)(struct spdk_nvme_qpair *, struct nvme_request *, struct nvme_tracker *,
 			   bool);
 
@@ -1579,6 +1621,10 @@ static build_req_fn const g_nvme_pcie_build_req_table[][2] = {
 	[NVME_PAYLOAD_TYPE_SGL] = {
 		nvme_pcie_qpair_build_prps_sgl_request,			/* PRP */
 		nvme_pcie_qpair_build_hw_sgl_request			/* SGL */
+	},
+	[NVME_PAYLOAD_TYPE_GPU] = {
+		nvme_pcie_qpair_build_contig_request,			/* PRP */
+		nvme_pcie_qpair_build_contig_hw_sgl_request		/* SGL */
 	}
 };
 
